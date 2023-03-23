@@ -1,0 +1,40 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "console": "integ",
+    "configurations": [
+        {
+            "internalConsoleOptions": "openOnSessionStart",
+            "name": "Debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "./build/edge-camera.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "interface": "swd",
+            "servertype": "openocd",
+            "preLaunchTask": "make",
+            "postLaunchCommands": ["set logging enabled on", "set print elements 0", "set print repeats unlimited"],
+            "device": "STM32WLE5JCIx",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32wlx.cfg"
+            ],
+            /*"swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 8000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    {
+                        "type": "console",
+                        "label": "ITM",
+                        "port": 0
+                    }
+                ]
+            }*/
+        }
+    ]
+}
