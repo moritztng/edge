@@ -1,0 +1,18 @@
+3v3, 3v3, 3v3
+swdio, swdio, -
+swclk, swclk, -
+miso, -,d7
+ssn, -, d2
+sck, -, d4
+d10, -, d5
+d9,  -, plk
+tx2, -, vs
+tx1, -, xlk
+d10, -, hs
+tx, -, d0
+rx, -, d3
+a3, -, d0
+a4, -, d1
+sda, -, sda
+scl, -, scl
+gnd, -, gnd

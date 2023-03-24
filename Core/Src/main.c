@@ -197,10 +197,11 @@ DMA_HandleTypeDef hdma_tim1_ch2;
 
 /* USER CODE BEGIN PV */
 uint8_t gpio_b_pins[] = {3, 4, 6, 7, 9, 10, 13, 14};
-uint16_t n_lines = 0;
-uint32_t index_frame = 0;
+uint16_t n_lines;
+uint32_t index_frame;
 uint16_t line_buffer[1024];
-uint8_t frame[4800];
+uint8_t *frame;
+uint8_t captured;
 
 static uint8_t ov7670_registers[][2] = {
     {REG_COM7, COM7_RESET},
@@ -440,19 +441,8 @@ int main(void)
   MX_LPTIM1_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
-  HAL_Delay(1000);
-  int index_registers = 0;
-  while (ov7670_registers[index_registers][0] != 0xff || ov7670_registers[index_registers][1] != 0xff)
-  {
-    HAL_I2C_Master_Transmit(&hi2c2, OV7670_I2C_ADDR, ov7670_registers[index_registers], 2, HAL_MAX_DELAY);
-    HAL_Delay(10);
-    index_registers++;
-  }
-  HAL_DMA_Start(&hdma_tim1_ch2, (uint32_t)&GPIOB->IDR, (uint32_t)line_buffer, 1024);
-  HAL_TIM_IC_Start(&htim1, TIM_CHANNEL_2);
-  __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_CC2);
-  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_3);
+  uint8_t frame[4800];
+  Capture_Frame(frame);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -773,11 +763,35 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
     n_lines++;
     if (n_lines == 240)
     {
+      HAL_LPTIM_PWM_Stop(&hlptim1);
       HAL_TIM_IC_Stop(&htim1, TIM_CHANNEL_2);
       HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);
       HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_3);
+      captured = 1;
     }
   }
+}
+
+void Capture_Frame(uint8_t *output_frame)
+{
+  frame = output_frame;
+  n_lines = 0;
+  index_frame = 0;
+  captured = 0;
+  HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
+  HAL_Delay(1000);
+  int index_registers = 0;
+  while (ov7670_registers[index_registers][0] != 0xff || ov7670_registers[index_registers][1] != 0xff)
+  {
+    HAL_I2C_Master_Transmit(&hi2c2, OV7670_I2C_ADDR, ov7670_registers[index_registers], 2, HAL_MAX_DELAY);
+    HAL_Delay(10);
+    index_registers++;
+  }
+  HAL_DMA_Start(&hdma_tim1_ch2, (uint32_t)&GPIOB->IDR, (uint32_t)line_buffer, 1024);
+  HAL_TIM_IC_Start(&htim1, TIM_CHANNEL_2);
+  __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_CC2);
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_3);
+  while (!captured);
 }
 
 /* USER CODE END 4 */
