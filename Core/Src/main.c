@@ -21,7 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -191,17 +190,16 @@ I2C_HandleTypeDef hi2c2;
 
 LPTIM_HandleTypeDef hlptim1;
 
+SPI_HandleTypeDef hspi2;
+
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 DMA_HandleTypeDef hdma_tim1_ch2;
 
 /* USER CODE BEGIN PV */
+volatile uint8_t line_received = 0;
+volatile uint8_t frame_start = 0;
 uint8_t gpio_b_pins[] = {3, 4, 6, 7, 9, 10, 13, 14};
-uint16_t n_lines;
-uint32_t index_frame;
-uint16_t line_buffer[1024];
-uint8_t *frame;
-uint8_t captured;
 
 static uint8_t ov7670_registers[][2] = {
     {REG_COM7, COM7_RESET},
@@ -400,6 +398,7 @@ static void MX_TIM2_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_LPTIM1_Init(void);
 static void MX_I2C2_Init(void);
+static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -440,9 +439,13 @@ int main(void)
   MX_TIM1_Init();
   MX_LPTIM1_Init();
   MX_I2C2_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
+  W25qxx_Init();
+  W25qxx_EraseBlock(0);
+  Capture_Frame(0);
   uint8_t frame[4800];
-  Capture_Frame(frame);
+  W25qxx_ReadBlock(frame, 0, 0, 4800);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -471,8 +474,10 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB buses clocks
    */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
@@ -573,6 +578,45 @@ static void MX_LPTIM1_Init(void)
   }
   /* USER CODE BEGIN LPTIM1_Init 2 */
   /* USER CODE END LPTIM1_Init 2 */
+}
+
+/**
+ * @brief SPI2 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 7;
+  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi2.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
 }
 
 /**
@@ -727,12 +771,22 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : PB3 PB4 PB7 PB9
-                           PB14 PB13 PB6 PB10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_14 | GPIO_PIN_13 | GPIO_PIN_6 | GPIO_PIN_10;
+                           PB6 PB10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_6 | GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
@@ -744,40 +798,63 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
   switch (htim->Channel)
   {
   case HAL_TIM_ACTIVE_CHANNEL_3:
-    HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+    frame_start = 1;
     break;
   case HAL_TIM_ACTIVE_CHANNEL_1:
-    if (n_lines % 4 == 0)
-    {
-      int start_line_buffer = ((1024 - __HAL_DMA_GET_COUNTER(&hdma_tim1_ch2)) + 1024 - 640) % 1024;
-      for (int i = 0; i < 640; i += 8)
-      {
-        uint8_t value = 0;
-        for (int j = 0; j < 8; j++)
-        {
-          value |= ((line_buffer[(start_line_buffer + i) % 1024] >> gpio_b_pins[j]) & 1) << j;
-        }
-        frame[index_frame++] = value;
-      }
-    }
-    n_lines++;
-    if (n_lines == 240)
-    {
-      HAL_LPTIM_PWM_Stop(&hlptim1);
-      HAL_TIM_IC_Stop(&htim1, TIM_CHANNEL_2);
-      HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);
-      HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_3);
-      captured = 1;
-    }
+    line_received += 1;
   }
 }
 
-void Capture_Frame(uint8_t *output_frame)
+uint8_t Spi_Send(uint8_t data)
 {
-  frame = output_frame;
-  n_lines = 0;
-  index_frame = 0;
-  captured = 0;
+  uint8_t reception;
+  HAL_SPI_TransmitReceive(&hspi2, &data, &reception, 1, 100);
+  return reception;
+}
+
+void Spi_Enable_Write()
+{
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+  Spi_Send(0x06);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
+}
+
+void Spi_Send_Page(uint32_t page_address, uint8_t *p_data, uint16_t size)
+{
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+  Spi_Send(0x02);
+  Spi_Send((page_address & 0xFF0000) >> 16);
+  Spi_Send((page_address & 0xFF00) >> 8);
+  Spi_Send(page_address & 0xFF);
+  HAL_SPI_Transmit(&hspi2, p_data, size, 100);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
+}
+
+void Spi_Wait_Write_End()
+{
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+  Spi_Send(0x05);
+  uint8_t ret;
+  do
+  {
+    ret = Spi_Send(0xA5);
+    HAL_Delay(1);
+  } while ((ret & 0x01) == 0x01);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
+}
+
+void Capture_Frame(uint32_t frame_address)
+{
+  uint8_t frame_buffer[4800];
+  uint16_t n_lines;
+  uint16_t line_buffer[1024];
+  uint32_t frame_index = 0;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_13 | GPIO_PIN_14);
+  GPIO_InitStruct.Pin = GPIO_PIN_13 | GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
   HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
   HAL_Delay(1000);
   int index_registers = 0;
@@ -791,7 +868,56 @@ void Capture_Frame(uint8_t *output_frame)
   HAL_TIM_IC_Start(&htim1, TIM_CHANNEL_2);
   __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_CC2);
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_3);
-  while (!captured);
+
+  while (!frame_start)
+    ;
+  frame_start = 0;
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+  while (frame_index < 4800)
+  {
+    while (!line_received)
+      ;
+    line_received = 0;
+    if (n_lines % 4 == 0)
+    {
+      int start_line_buffer = ((1024 - __HAL_DMA_GET_COUNTER(&hdma_tim1_ch2)) + 1024 - 640) % 1024;
+      for (int i = 0; i < 640; i += 8)
+      {
+        uint8_t value = 0;
+        for (int j = 0; j < 8; j++)
+        {
+          value |= ((line_buffer[(start_line_buffer + i) % 1024] >> gpio_b_pins[j]) & 1) << j;
+        }
+        frame_buffer[frame_index++] = value;
+      }
+    }
+    n_lines++;
+  }
+  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_13 | GPIO_PIN_14);
+  GPIO_InitStruct.Pin = GPIO_PIN_14 | GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  HAL_LPTIM_PWM_Stop(&hlptim1);
+  HAL_TIM_IC_Stop(&htim1, TIM_CHANNEL_2);
+  HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_3);
+  uint8_t *p_frame_buffer = frame_buffer;
+  for (int i = 0; i < 4800; i += 256)
+  {
+    Spi_Enable_Write();
+    HAL_Delay(1);
+    uint32_t n_pixels_left = 4800 - i;
+    Spi_Send_Page(i, p_frame_buffer + i, n_pixels_left < 256 ? n_pixels_left : 256);
+    HAL_Delay(1);
+    Spi_Wait_Write_End();
+    HAL_Delay(1);
+  }
+  W25qxx_ReadBlock(frame_buffer, 0, 0, 4800);
+  return;
 }
 
 /* USER CODE END 4 */

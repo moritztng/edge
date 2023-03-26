@@ -1,0 +1,4 @@
+[ProjectFiles]
+HeaderPath=./Drivers/W25Qxx_HAL_Driver
+[Groups]
+Drivers/W25Qxx_HAL_Driver=Drivers/W25Qxx_HAL_Driver/w25qxx.c

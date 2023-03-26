@@ -1,2 +1,4 @@
 build
 env
+*.png
+gdb.txt
