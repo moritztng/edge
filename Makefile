@@ -58,6 +58,7 @@ Drivers/STM32WLxx_HAL_Driver/Src/stm32wlxx_hal_lptim.c \
 Drivers/STM32WLxx_HAL_Driver/Src/stm32wlxx_hal_i2c.c \
 Drivers/STM32WLxx_HAL_Driver/Src/stm32wlxx_hal_i2c_ex.c \
 Drivers/W25Qxx_HAL_Driver/w25qxx.c \
+Drivers/OV7670_HAL_Driver/ov7670.c \
 Drivers/STM32WLxx_HAL_Driver/Src/stm32wlxx_hal_spi.c \
 Drivers/STM32WLxx_HAL_Driver/Src/stm32wlxx_hal_spi_ex.c
 
@@ -122,7 +123,8 @@ C_INCLUDES =  \
 -IDrivers/STM32WLxx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32WLxx/Include \
 -IDrivers/CMSIS/Include \
--I./Drivers/W25Qxx_HAL_Driver
+-I./Drivers/W25Qxx_HAL_Driver \
+-I./Drivers/OV7670_HAL_Driver
 
 
 # compile gcc flags
