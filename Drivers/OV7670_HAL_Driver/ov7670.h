@@ -4,6 +4,6 @@
 #include <stdint.h>
 #include "stm32wlxx_hal.h"
 
-void CaptureFrame(uint32_t frame_address);
+void CaptureFrame(uint32_t frame_address, uint8_t scale);
 
 #endif

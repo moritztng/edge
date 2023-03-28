@@ -100,7 +100,6 @@
 #define REG_COM17 0x42     /* Control 17 */
 #define COM17_AECWIN 0xc0  /* AEC window - must match COM4 */
 #define COM17_CBAR 0x08    /* DSP Color bar */
-
 /*
  * This matrix defines how the colors are generated, must be
  * tweaked to adjust hue and saturation.
@@ -154,6 +153,11 @@ extern LPTIM_HandleTypeDef hlptim1;
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_tim1_ch2;
+
+const uint32_t width = 320;
+const uint32_t height = 240;
+const uint32_t area = width * height;
+const uint32_t line_buffer_size = width * 2;
 
 volatile uint8_t line_received = 0;
 volatile uint8_t frame_start = 0;
@@ -381,26 +385,31 @@ void SetGPIOInput()
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
-void CaptureFrame(uint32_t frame_address)
+void CaptureFrame(uint32_t frame_address, uint8_t scale)
 {
+    uint32_t scaled_area = area / (scale * scale);
+    
     uint32_t sector_index = frame_address;
-    uint32_t frame_address_end = frame_address + 4800;
+    uint32_t frame_address_end = frame_address + scaled_area;
     uint32_t sector_erase_number = -1;
-    while (sector_index <= frame_address_end) {
-        uint32_t sector_number = sector_index / 4096;
-        if (sector_number != sector_erase_number) {
+    while (sector_index <= frame_address_end)
+    {
+        uint32_t sector_number = sector_index / w25qxx.SectorSize;
+        if (sector_number != sector_erase_number)
+        {
             W25qxx_EraseSector(sector_number);
             sector_erase_number = sector_number;
         }
         uint32_t pixels_left = frame_address_end - sector_index;
-        if(pixels_left == 0) {
+        if (pixels_left == 0)
+        {
             break;
-        } 
-        sector_index += pixels_left < 4096 ? pixels_left : 4096;
+        }
+        sector_index += pixels_left < w25qxx.SectorSize ? pixels_left : w25qxx.SectorSize;
     }
 
-    uint8_t frame_buffer[256];
-    uint16_t line_buffer[1024];
+    uint8_t frame_buffer[w25qxx.PageSize];
+    uint16_t line_buffer[line_buffer_size];
     uint32_t frame_index = frame_address;
     uint32_t frame_buffer_index = 0;
     uint16_t n_lines = 0;
@@ -408,6 +417,7 @@ void CaptureFrame(uint32_t frame_address)
     SetGPIOInput();
     HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
     HAL_Delay(1000);
+
     int index_registers = 0;
     while (ov7670_registers[index_registers][0] != 0xff || ov7670_registers[index_registers][1] != 0xff)
     {
@@ -415,46 +425,49 @@ void CaptureFrame(uint32_t frame_address)
         HAL_Delay(10);
         index_registers++;
     }
-    HAL_DMA_Start(&hdma_tim1_ch2, (uint32_t)&GPIOB->IDR, (uint32_t)line_buffer, 1024);
+
+    HAL_DMA_Start(&hdma_tim1_ch2, (uint32_t)&GPIOB->IDR, (uint32_t)line_buffer, line_buffer_size);
     HAL_TIM_IC_Start(&htim1, TIM_CHANNEL_2);
     __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_CC2);
     HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_3);
+
     frame_start = 0;
     while (!frame_start)
         ;
     frame_start = 0;
     HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-    while (frame_index < 4800)
+    while (frame_index < scaled_area)
     {
         line_received = 0;
         while (!line_received)
             ;
         line_received = 0;
-        if (n_lines % 4 == 0)
+        HAL_LPTIM_PWM_Stop(&hlptim1);
+        SetGPIOSpi();
+        if (n_lines % scale == 0)
         {
-            int start_line_buffer = (((1024 - __HAL_DMA_GET_COUNTER(&hdma_tim1_ch2)) + 1024 - 640) % 1024) + 1;
-            for (int i = 0; i < 640; i += 8)
+            int start_line_buffer = line_buffer_size - __HAL_DMA_GET_COUNTER(&hdma_tim1_ch2) + 1;
+            for (int i = 0; i < line_buffer_size; i += scale * 2)
             {
                 uint8_t value = 0;
                 for (int j = 0; j < 8; j++)
                 {
-                    value |= ((line_buffer[(start_line_buffer + i) % 1024] >> gpio_b_pins[j]) & 1) << j;
+                    value |= ((line_buffer[(start_line_buffer + i) % line_buffer_size] >> gpio_b_pins[j]) & 1) << j;
                 }
                 frame_buffer[frame_buffer_index++] = value;
-                uint32_t pixels_left = 4800 - frame_index;
-                uint32_t frame_buffer_max = pixels_left < 256 ? pixels_left : 256;
+                
+                uint32_t pixels_left = scaled_area - frame_index;
+                uint32_t frame_buffer_max = pixels_left < w25qxx.PageSize ? pixels_left : w25qxx.PageSize;
                 if (frame_buffer_index == frame_buffer_max)
                 {
-                    HAL_LPTIM_PWM_Stop(&hlptim1);
-                    SetGPIOSpi();
                     W25qxx_WritePage(frame_index, frame_buffer, frame_buffer_index);
-                    SetGPIOInput();
-                    HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
                     frame_index += frame_buffer_index;
                     frame_buffer_index = 0;
                 }
             }
         }
+        SetGPIOInput();
+        HAL_LPTIM_PWM_Start(&hlptim1, 3, 2);
         n_lines++;
     }
     HAL_LPTIM_PWM_Stop(&hlptim1);

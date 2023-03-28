@@ -102,9 +102,14 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   W25qxx_Init();
-  CaptureFrame(0);
+  CaptureFrame(0, 4);
+  int test_index = 0;
   uint8_t test[4800];
-  W25qxx_Read(test, 0, 4800);
+  for (int i = 0; i < 60; i += 1) {
+    for (int j = 0; j < 80; j += 1) {
+      W25qxx_Read(&test[test_index++], i * 80 + j, 1);
+    }
+  }
 
   /* USER CODE END 2 */
 
