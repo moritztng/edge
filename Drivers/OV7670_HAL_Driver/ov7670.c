@@ -436,7 +436,7 @@ void CaptureFrame(uint32_t frame_address, uint8_t scale)
         ;
     frame_start = 0;
     HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-    while (frame_index < scaled_area)
+    while (frame_index < frame_address_end)
     {
         line_received = 0;
         while (!line_received)
@@ -456,7 +456,7 @@ void CaptureFrame(uint32_t frame_address, uint8_t scale)
                 }
                 frame_buffer[frame_buffer_index++] = value;
                 
-                uint32_t pixels_left = scaled_area - frame_index;
+                uint32_t pixels_left = frame_address_end - frame_index;
                 uint32_t frame_buffer_max = pixels_left < w25qxx.PageSize ? pixels_left : w25qxx.PageSize;
                 if (frame_buffer_index == frame_buffer_max)
                 {

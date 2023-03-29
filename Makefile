@@ -110,7 +110,8 @@ AS_DEFS =
 C_DEFS =  \
 -DCORE_CM4 \
 -DUSE_HAL_DRIVER \
--DSTM32WLE5xx
+-DSTM32WLE5xx \
+-DARM_MATH_CM4
 
 
 # AS includes
@@ -123,8 +124,9 @@ C_INCLUDES =  \
 -IDrivers/STM32WLxx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32WLxx/Include \
 -IDrivers/CMSIS/Include \
--I./Drivers/W25Qxx_HAL_Driver \
--I./Drivers/OV7670_HAL_Driver
+-IDrivers/W25Qxx_HAL_Driver \
+-IDrivers/OV7670_HAL_Driver \
+-IDrivers/CMSIS/DSP/Include
 
 
 # compile gcc flags
@@ -148,8 +150,8 @@ CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
 LDSCRIPT = STM32WLE5XX_FLASH.ld
 
 # libraries
-LIBS = -lc -lm -lnosys 
-LIBDIR = 
+LIBS = -lc -lm -lnosys -larm_cortexM4l_math
+LIBDIR = -LDrivers/CMSIS/DSP/Lib/GCC
 LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
 
 # default action: build all

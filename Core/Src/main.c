@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "arm_math.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -59,6 +59,7 @@ static void MX_TIM1_Init(void);
 static void MX_LPTIM1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_SPI2_Init(void);
+uint8_t DetectMotion(uint32_t frame1_address, uint32_t frame2_address, uint32_t size, uint8_t sensitivity);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -103,22 +104,28 @@ int main(void)
   /* USER CODE BEGIN 2 */
   W25qxx_Init();
   CaptureFrame(0, 4);
-  int test_index = 0;
-  uint8_t test[4800];
-  for (int i = 0; i < 60; i += 1) {
-    for (int j = 0; j < 80; j += 1) {
-      W25qxx_Read(&test[test_index++], i * 80 + j, 1);
-    }
-  }
+  uint32_t frame_address = 4864;
 
-  /* USER CODE END 2 */
+  // W25qxx_Read(test, 256, 4800);
+  // int test_index = 0;
+  // uint8_t test[4800];
+  // for (int i = 0; i < 60; i += 1) {
+  // for (int j = 0; j < 80; j += 1) {
+  // W25qxx_Read(&test[test_index++], i * 80 + j, 1);
+  // }
+  // }
+  // /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-
+    HAL_Delay(1000);
+    CaptureFrame(frame_address, 4);
+    uint8_t motion = DetectMotion(0, 4864, 4800, 100);
+    printf(motion);
+    frame_address = (frame_address + 4864) % (2 * 4864);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -458,6 +465,35 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint8_t DetectMotion(uint32_t frame1_address, uint32_t frame2_address, uint32_t size, uint8_t sensitivity)
+{
+  float32_t avg_abs_difference = 0;
+  float32_t avg_abs_difference_buffer;
+  uint32_t n_buffer;
+  float32_t frame1_buffer[100];
+  float32_t frame2_buffer[100];
+  uint8_t frame_buffer[100];
+  for (int i = 0; i < size; i += 100)
+  {
+    n_buffer = size - i < 100 ? size - i : 100;
+    W25qxx_Read(frame_buffer, frame1_address + i, n_buffer);
+    for (int j = 0; j < n_buffer; j++)
+    {
+      frame1_buffer[j] = (float32_t)frame_buffer[j];
+    }
+    W25qxx_Read(frame_buffer, frame2_address + i, n_buffer);
+    for (int j = 0; j < n_buffer; j++)
+    {
+      frame2_buffer[j] = (float32_t)frame_buffer[j];
+    }
+    arm_sub_f32(frame1_buffer, frame2_buffer, frame1_buffer, n_buffer);
+    arm_abs_f32(frame1_buffer, frame1_buffer, n_buffer);
+    arm_mean_f32(frame1_buffer, n_buffer, &avg_abs_difference_buffer);
+    avg_abs_difference += avg_abs_difference_buffer * n_buffer;
+  }
+  avg_abs_difference /= size;
+  return avg_abs_difference > sensitivity;
+}
 /* USER CODE END 4 */
 
 /**
