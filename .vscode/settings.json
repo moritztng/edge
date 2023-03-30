@@ -1,6 +1,7 @@
 {
     "cortex-debug.variableUseNaturalFormat": true,
     "files.associations": {
-        "stm32wlxx_hal.h": "c"
+        "stm32wlxx_hal.h": "c",
+        "arm_math.h": "c"
     }
 }

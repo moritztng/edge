@@ -18,9 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "arm_math.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,8 +60,8 @@ static void MX_TIM1_Init(void);
 static void MX_LPTIM1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_SPI2_Init(void);
-uint8_t DetectMotion(uint32_t frame1_address, uint32_t frame2_address, uint32_t size, uint8_t sensitivity);
 /* USER CODE BEGIN PFP */
+uint8_t DetectMotion(uint32_t frame1_address, uint32_t frame2_address, uint32_t size, uint8_t sensitivity);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -103,29 +104,29 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   W25qxx_Init();
-  CaptureFrame(0, 4);
-  uint32_t frame_address = 4864;
-
-  // W25qxx_Read(test, 256, 4800);
-  // int test_index = 0;
-  // uint8_t test[4800];
-  // for (int i = 0; i < 60; i += 1) {
-  // for (int j = 0; j < 80; j += 1) {
-  // W25qxx_Read(&test[test_index++], i * 80 + j, 1);
-  // }
-  // }
-  // /* USER CODE END 2 */
+  uint32_t frame_address = 0;
+  uint8_t second_frame_captured = 0;
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-    HAL_Delay(1000);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
     CaptureFrame(frame_address, 4);
-    uint8_t motion = DetectMotion(0, 4864, 4800, 100);
-    printf(motion);
-    frame_address = (frame_address + 4864) % (2 * 4864);
+    if (second_frame_captured)
+    {
+      uint8_t detection = DetectMotion(0, 8192, 4800, 50);
+      if (detection)
+      {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+      }
+    }
+    second_frame_captured = 1;
+    frame_address = (frame_address + 8192) % (2 * 8192);
+    HAL_Delay(1000);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -446,6 +447,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : PB3 PB4 PB7 PB9
                            PB6 PB10 */
   GPIO_InitStruct.Pin = GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_6 | GPIO_PIN_10;
@@ -459,6 +463,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
